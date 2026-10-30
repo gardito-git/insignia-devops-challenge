@@ -58,6 +58,17 @@ resource "aws_network_acl_rule" "app_outbound_all" {
 # Protected Subnet NACL — only node/pod CIDRs should reach databases
 # ------------------------------------------------------------------------------
 
+locals {
+  pod_cidr = "100.64.0.0/16" # Pod IPs
+  app_cidr = "10.10.64.0/18" # All 3 app subnets (10.10.64.0/20, 10.10.80.0/20, 10.10.96.0/20)
+  protected_cidr = "10.10.128.0/18" # All 3 protected subnets (10.10.128.0/20, 10.10.144.0/20, 10.10.160.0/20)
+  nacl_allowed_cidrs = {
+    pods      = local.pod_cidr
+    app       = local.app_cidr
+    protected = local.protected_cidr
+  }
+}
+
 resource "aws_network_acl" "protected" {
   vpc_id     = var.vpc_id
   subnet_ids = var.protected_subnet_ids
@@ -69,23 +80,27 @@ resource "aws_network_acl" "protected" {
 # EKS with VPC CNI prefix delegation assigns pods IPs from 100.64.0.0/16
 # This rule blocks all pod-originated traffic to RDS/ElastiCache
 resource "aws_network_acl_rule" "protected_inbound_postgres" {
+  for_each = local.nacl_allowed_cidrs
+
   network_acl_id = aws_network_acl.protected.id
-  rule_number    = 100
+  rule_number    = 100 + index(keys(local.nacl_allowed_cidrs), each.key)
   egress         = false
   protocol       = "tcp"
   rule_action    = "allow"
-  cidr_block     = "10.10.64.0/20" # node CIDR only — pods are missing
+  cidr_block     = each.value # node CIDR only — pods are missing
   from_port      = 5432
   to_port        = 5432
 }
 
 resource "aws_network_acl_rule" "protected_inbound_redis" {
+  for_each = { for k, v in local.nacl_allowed_cidrs : k => v if k != "protected" } # Exclude protected subnets from Redis access
+
   network_acl_id = aws_network_acl.protected.id
   rule_number    = 110
   egress         = false
   protocol       = "tcp"
   rule_action    = "allow"
-  cidr_block     = "10.10.64.0/20" # node CIDR only — pods are missing
+  cidr_block     = each.value # node CIDR only — pods are missing
   from_port      = 6379
   to_port        = 6379
 }
@@ -93,12 +108,26 @@ resource "aws_network_acl_rule" "protected_inbound_redis" {
 # BUG 2: Ephemeral return traffic only covers node CIDR
 # Pods initiating connections get responses dropped silently
 resource "aws_network_acl_rule" "protected_outbound_ephemeral" {
+  for_each     = local.nacl_allowed_cidrs
+
   network_acl_id = aws_network_acl.protected.id
   rule_number    = 100
   egress         = true
   protocol       = "tcp"
   rule_action    = "allow"
-  cidr_block     = "10.10.64.0/20" # node CIDR only — missing 100.64.0.0/16
+  cidr_block     = each.value # node CIDR only — missing 100.64.0.0/16
   from_port      = 1024
   to_port        = 65535
+}
+
+# Add new aws_network_acl_rule for outbound Postgres traffic to protected subnets
+resource "aws_network_acl_rule" "protected_outbound_postgres" {
+  network_acl_id = aws_network_acl.protected.id
+  rule_number    = 110
+  egress         = true
+  protocol       = "tcp"
+  rule_action    = "allow"
+  cidr_block     = local.protected_cidr
+  from_port      = 5432
+  to_port        = 5432
 }
