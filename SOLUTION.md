@@ -15,7 +15,7 @@ Edit Postgres database instance:
 - change database subnet group name with protected subnet group, this is for bug no 3 that I created below
 - this rds not publicly accessible
 - add parameter group name with "app" parameter group for TLS enforcement mentioned before
-Change rds subnet group with protected, this is for bug no 3 for update Postgres database instance
+Add rds subnet group with protected, this is for bug no 3 for update Postgres database instance
 Disabled ingress "PostgreSQL from RDS Proxy" for security group "rds", because circular ref bug no 1
 Disabled ingress "PostgreSQL from EKS pods" for security groups "rds_proxy", because missing pod CIDR ingress bug no 2
 Disabled egress "PostgreSQL to RDS" for security groups "rds_proxy", because circular ref bug no 1
@@ -32,5 +32,6 @@ Edit RDS Proxy "app" resource:
 - subnet ids with protected subnet ids
 - iam auth DISABLED
 Edit database proxy default target group "app" with connection borrow timeout to 5 seconds
+![alt text](image.png)
 
 ## Task 2 — Kubernetes (On-Progress)

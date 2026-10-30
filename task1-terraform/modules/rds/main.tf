@@ -175,6 +175,12 @@ resource "aws_db_instance" "app" {
 }
 
 # BUG 3 continued: subnet group built from web subnets
+resource "aws_db_subnet_group" "web" {
+  name       = "${var.cluster_name}-rds-web-subnet-group"
+  subnet_ids = var.web_subnet_ids # BUG 3: should be var.protected_subnet_ids
+  
+  tags = { Name = "${var.cluster_name}-rds-subnet-group" }
+}
 resource "aws_db_subnet_group" "protected" {
   name       = "${var.cluster_name}-rds-protected-subnet-group"
   subnet_ids = var.protected_subnet_ids
@@ -216,7 +222,7 @@ resource "aws_db_proxy_default_target_group" "app" {
   db_proxy_name = aws_db_proxy.app.name
 
   connection_pool_config {
-    connection_borrow_timeout = 5# TODO
+    connection_borrow_timeout = 5 # TODO
     max_connections_percent   = 100
   }
 }
