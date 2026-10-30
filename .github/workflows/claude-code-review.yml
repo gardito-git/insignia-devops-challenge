@@ -1,0 +1,77 @@
+name: Claude Code Review
+
+# Runs on pull requests targeting ANY branch.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+# One review per PR; a new push cancels the in-flight run.
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: Review pull request
+    runs-on: ubuntu-latest
+    # Skip drafts and forks (forked PRs cannot read repository secrets).
+    if: >-
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Claude review
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+            BASE BRANCH: ${{ github.event.pull_request.base.ref }}
+
+            You are reviewing a pull request in a DevOps / infrastructure
+            repository containing Terraform, Kubernetes manifests and
+            incident-response documentation.
+
+            Steps:
+            1. Run `gh pr view` and `gh pr diff` to read the change.
+            2. Review ONLY what the diff changes. Focus on:
+               - Correctness and obvious bugs
+               - Security: hardcoded secrets, overly broad IAM or RBAC,
+                 public ingress/security groups, privileged containers,
+                 missing encryption
+               - Terraform: missing variable types or defaults, unpinned
+                 provider/module versions, state or lifecycle risks,
+                 resources that will be destroyed and recreated
+               - Kubernetes: missing resource requests/limits, probes,
+                 securityContext, image tags pinned to :latest
+               - Hygiene: naming, duplication, missing documentation
+            3. Post ONE summary comment on the PR with
+               `gh pr comment ${{ github.event.pull_request.number }} --body "..."`.
+               Use this structure:
+
+               ## Claude Code Review
+               **Verdict:** <Approve / Comment / Request changes>
+               ### Blocking
+               ### Suggestions
+               ### Nitpicks
+
+               Reference files as `path/to/file.tf:42`. If a section has no
+               findings, write "None". Be specific and concise — no praise,
+               no restating the diff. If the change is clean, say so briefly.
+            4. Use the inline comment tool for issues tied to a specific line.
+
+            Do not push commits, do not approve or merge the PR, and do not
+            modify any files.
+          claude_args: |
+            --max-turns 15
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*),Read,Grep,Glob"
