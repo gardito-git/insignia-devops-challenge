@@ -96,7 +96,7 @@ resource "aws_network_acl_rule" "protected_inbound_redis" {
   for_each = { for k, v in local.nacl_allowed_cidrs : k => v if k != "protected" } # Exclude protected subnets from Redis access
 
   network_acl_id = aws_network_acl.protected.id
-  rule_number    = 110
+  rule_number    = 110 + index(keys(local.nacl_allowed_cidrs), each.key)
   egress         = false
   protocol       = "tcp"
   rule_action    = "allow"
@@ -111,7 +111,7 @@ resource "aws_network_acl_rule" "protected_outbound_ephemeral" {
   for_each     = local.nacl_allowed_cidrs
 
   network_acl_id = aws_network_acl.protected.id
-  rule_number    = 100
+  rule_number    = 100 + index(keys(local.nacl_allowed_cidrs), each.key)
   egress         = true
   protocol       = "tcp"
   rule_action    = "allow"
