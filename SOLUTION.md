@@ -32,3 +32,5 @@ Edit RDS Proxy "app" resource:
 - subnet ids with protected subnet ids
 - iam auth DISABLED
 Edit database proxy default target group "app" with connection borrow timeout to 5 seconds
+
+## Task 2 — Kubernetes (On-Progress)
