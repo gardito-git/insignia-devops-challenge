@@ -51,3 +51,16 @@ Fix all bugs
 - BUG 3: threshold 10 req/pod
 - BUG 4: fix PromQL query
 - BUG 4: CPU realistic trigger threshold is 70%
+
+## Task 3 — Incident
+
+### 3a: Root Cause Analysis
+aws elasticache describe-replication-groups "TransitEncryptionMode": "required"
+ElastiCache replication groups required Encryption (TransitEncryptionMode: required - kubectl-and-aws-output)
+
+### 3b: Remediation Plan
+ConfigMap rediss:// + REDIS_SSL: "true" (done), then `kubectl rollout restart deployment/helios-api deployment/helios-worker -n helios-ai`.
+
+### 3c: Prevention
+Alert on the symptom, not the pod. 
+alert on `kube_endpoint_address_available{service="helios-api"} == 0` and on DB/Redis connection-error rate, rather than waiting for 503s to reach the gateway. A blackbox/synthetic probe from a pod in the app tier to the proxy endpoint.
