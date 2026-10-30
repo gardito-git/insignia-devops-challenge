@@ -1,0 +1,50 @@
+name: Kubernetes Validate
+
+on:
+  push:
+    paths:
+      - "task2-k8s/**"
+      - ".github/workflows/k8s-validate.yml"
+  pull_request:
+    paths:
+      - "task2-k8s/**"
+      - ".github/workflows/k8s-validate.yml"
+
+concurrency:
+  group: k8s-validate-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  KARPENTER_VERSION: "1.6.0"
+  KEDA_VERSION: "2.17.0"
+
+jobs:
+  validate:
+    name: kubectl dry-run
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v5
+
+      # kubectl apply --dry-run=client still needs an API server for
+      # discovery of the NodePool / ScaledObject kinds, so spin up kind.
+      - name: Create kind cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: k8s-validate
+
+      - name: Install Karpenter and KEDA CRDs
+        run: |
+          kubectl apply -f "https://raw.githubusercontent.com/aws/karpenter-provider-aws/v${KARPENTER_VERSION}/pkg/apis/crds/karpenter.sh_nodepools.yaml"
+          kubectl apply --server-side -f "https://github.com/kedacore/keda/releases/download/v${KEDA_VERSION}/keda-${KEDA_VERSION}-crds.yaml"
+          kubectl wait --for=condition=Established --timeout=60s \
+            crd/nodepools.karpenter.sh \
+            crd/scaledobjects.keda.sh
+
+      - name: Validate NodePools
+        run: kubectl apply --dry-run=client -f task2-k8s/nodepools/nodepools.yaml
+
+      - name: Validate ScaledObject
+        run: kubectl apply --dry-run=client -f task2-k8s/scaledobjects/llm-gateway-scaledobject.yaml

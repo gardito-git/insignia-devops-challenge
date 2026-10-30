@@ -36,3 +36,18 @@ Edit database proxy default target group "app" with connection borrow timeout to
 ![Architecture diagram](docs/task1.png)
 
 ## Task 2 — Kubernetes (In progress)
+
+### 2a: NodePool Design Decisions
+Fill template, limit, and disruption
+- Instance families: c/m for the CPU-heavy, stateless gateway; r/m for memory-heavy databases.
+- Spot first then on-demand. The database are on-demand only because losing a node mid-transaction is catastrophic.
+- Disruption: the app pool consolidates to save cost, with a budget to limit churn. The DB pool never consolidates and the zero budget blocks drift too, so updates are done manually in a window.
+- Taints: a taint keeps pods without a matching toleration off the node. A toleration only allows a pod onto it, so each workload also needs a nodeSelector on the workload label to force placement.
+
+### 2b: KEDA ScaledObject — Bugs Fixed
+Fix all bugs
+- BUG 1: fallback is missing entirely. Add a fallback that holds the last known replica count (or a safe minimum).
+- BUG 2: serverAddress points to a public Prometheus endpoint. Mimir (metrics backend) runs in-cluster at: http://mimir-svc.monitoring.svc.cluster.local:9009/prometheus
+- BUG 3: threshold 10 req/pod
+- BUG 4: fix PromQL query
+- BUG 4: CPU realistic trigger threshold is 70%
