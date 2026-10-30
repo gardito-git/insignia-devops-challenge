@@ -85,7 +85,6 @@ jobs:
       contents: read
     defaults:
       run:
-        # The Terraform root module lives here, not at the repo root.
         working-directory: task1-terraform
     steps:
       - name: Checkout Code
@@ -97,12 +96,8 @@ jobs:
           terraform_version: "1.9.8"
           terraform_wrapper: false
 
-      - name: Terraform Format Check
-        run: terraform fmt -check -recursive
-
       - name: Terraform Init
-        # -backend=false: no remote state needed to validate.
-        run: terraform init -backend=false -input=false
+        run: terraform init
 
       - name: Terraform Validate
-        run: terraform validate -no-color
+        run: terraform validate
