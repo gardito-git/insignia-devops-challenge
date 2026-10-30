@@ -13,7 +13,7 @@ concurrency:
 jobs:
   review:
     name: Review pull request
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Skip drafts and forks (forked PRs cannot read repository secrets).
     if: >-
       github.event.pull_request.draft == false &&
@@ -25,14 +25,14 @@ jobs:
       id-token: write
     steps:
       - name: Checkout PR
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Claude review
         uses: anthropics/claude-code-action@v1
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
