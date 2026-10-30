@@ -46,6 +46,48 @@ metadata:
   name: helios-ai-app
 spec:
   # TODO: fill in template, limits, and disruption
+  template:
+    metadata:
+      labels:
+        workload: app
+    spec:
+      nodeClassRef:
+        group: eks.amazonaws.com
+        kind: NodeClass
+        name: helios-ai-default
+      taints:
+        - key: workload
+          value: app
+          effect: NoSchedule # App NodePool Taint: workload=app:NoSchedule
+      requirements:
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["spot", "on-demand"] # allow spot instances first then on-demand as fallback
+        - key: eks.amazonaws.com/instance-category
+          operator: In
+          values: ["c", "m"] # compute-optimized + general purpose instance families
+        - key: eks.amazonaws.com/instance-generation
+          operator: Gt
+          values: ["5"]
+        - key: eks.amazonaws.com/instance-cpu
+          operator: In
+          values: ["4","8","16"]
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["amd64"]
+        - key: topology.kubernetes.io/zone
+          operator: In
+          values: ["ap-southeast-3a", "ap-southeast-3b", "ap-southeast-3c"]
+  limits: # Maximum: 20 nodes, 80 CPU, 160Gi memory
+    cpu: "80"
+    memory: 160Gi
+    nodes: "20"
+  disruption:
+    consolidationPolicy: WhenEmptyOrUnderutilized
+    consolidateAfter: 5m
+    budgets:
+      # Never disrupt more than 20% of gateway nodes at once.
+      - nodes: "20%"
 
 ---
 # YOUR DB NODEPOOL HERE
@@ -55,3 +97,48 @@ metadata:
   name: helios-ai-db
 spec:
   # TODO: fill in template, limits, and disruption
+  template:
+    metadata:
+      labels:
+        workload: db
+    spec:
+      nodeClassRef:
+        group: eks.amazonaws.com
+        kind: NodeClass
+        name: helios-ai-default
+      taints:
+        - key: workload
+          value: db
+          effect: NoSchedule
+      expireAfter: Never # Stateful — data loss on node termination is catastrophic
+      requirements:
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["on-demand"] # optimize for stability, on-demand ONLY
+        - key: eks.amazonaws.com/instance-category
+          operator: In
+          values: ["r", "m"] # memory-optimized + general purpose instance families
+        - key: eks.amazonaws.com/instance-generation
+          operator: Gt
+          values: ["5"]
+        - key: eks.amazonaws.com/instance-cpu
+          operator: In
+          values: ["2","4","8"]
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["amd64"]
+        - key: topology.kubernetes.io/zone
+          operator: In
+          values: ["ap-southeast-3a", "ap-southeast-3b", "ap-southeast-3c"]
+  limits: # Maximum: 4 nodes, 16 CPU, 64Gi memory
+    cpu: "16"
+    memory: 64Gi
+    nodes: "4"
+  disruption:
+    # Consolidation: DISABLED (never evict running DB nodes)
+    consolidationPolicy: WhenEmpty
+    consolidateAfter: Never
+    budgets:
+      # Block every voluntary disruption reason (Empty, Drifted, Underutilized).
+      - nodes: "0"
+
